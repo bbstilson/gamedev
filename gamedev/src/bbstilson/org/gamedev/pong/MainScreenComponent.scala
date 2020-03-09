@@ -57,7 +57,8 @@ trait MainScreenComponent {
     var ball = Circle(centerH(SQUARE_SIZE), centerV(SQUARE_SIZE), ballRadius)
 
     var BALL_SPEED = 4
-    val PADDLE_SPEED = 8
+    var PLAYER2_SPEED = 2
+    val PLAYER1_SPEED = 8
 
     var ballDirection = {
       val rX = if (r.nextBoolean) -BALL_SPEED else BALL_SPEED
@@ -65,15 +66,32 @@ trait MainScreenComponent {
       Vec(rX, rY)
     }
 
-    val UP = Vec(0, -PADDLE_SPEED)
-    val DOWN = Vec(0, PADDLE_SPEED)
+    val UP = Vec(0, -PLAYER1_SPEED)
+    val DOWN = Vec(0, PLAYER1_SPEED)
 
     def gameOver(p1S: Int, p2S: Int): Unit = {
       gameState.newScreen(new MainScreen(p1S, p2S))
     }
 
-    def updatePlayerPosition(player: Rect): Unit = player1 = player
+    def updatePlayerPosition(p: Rect): Unit = player1 = p
     def playerCanMove(p: Rect): Boolean = p.top >= 0 && p.bottom <= TOTAL_HEIGHT
+
+    def updatePlayer2Position(): Unit = {
+      // Player 2 always moves tries to get under the ball.
+      val player2Y = player2.center.y
+      // + for up; - for down; 0 for don't move
+      val desiredDirection = ball.center.y match {
+        case ballY if (ballY > player2Y) => PLAYER2_SPEED
+        case ballY if (ballY < player2Y) => -PLAYER2_SPEED
+        case _                           => 0
+      }
+
+      if ((player2.bottom + desiredDirection <= TOTAL_HEIGHT)
+          && (player2.top + desiredDirection >= 0)) {
+        player2 = player2 + Vec(0, desiredDirection)
+      }
+
+    }
 
     def moveBall(): Unit = {
       val (nextBall, nextBallDirection) = (ball + ballDirection) match {
@@ -118,6 +136,11 @@ trait MainScreenComponent {
         .filter(playerCanMove)
         .foreach(updatePlayerPosition)
 
+      // Only react when the ball is on their side.
+      if (ball.center.x >= TOTAL_WIDTH / 2) {
+        updatePlayer2Position()
+      }
+
       moveBall()
     }
 
@@ -131,8 +154,8 @@ trait MainScreenComponent {
       hud.sceneGraph.render(canvas)
     }
 
-    private def drawPaddle(canvas: Canvas, player: Rect, paint: Paint) = {
-      canvas.drawRect(player.left, player.top, player.width, player.height, paint)
+    private def drawPaddle(canvas: Canvas, paddle: Rect, paint: Paint) = {
+      canvas.drawRect(paddle.left, paddle.top, paddle.width, paddle.height, paint)
     }
 
     private def drawBall(canvas: Canvas): Unit = {
