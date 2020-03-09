@@ -1,4 +1,4 @@
-package bbstilson.org.gamedev.pong
+package org.bbstilson.gamedev.pong
 
 import sgl._
 import sgl.util._

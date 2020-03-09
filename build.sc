@@ -10,4 +10,14 @@ object gamedev extends ScalaModule {
     ivy"com.regblanc.sgl::sgl-desktop-awt:0.0.1"
     // "com.regblanc.sgl::sgl-jvmshared:0.0.1"
   )
+
+  object test extends Tests {
+
+    def ivyDeps = Agg(
+      ivy"org.scalactic::scalactic:3.1.1",
+      ivy"org.scalatest::scalatest:3.1.1"
+    )
+
+    def testFrameworks = Seq("org.scalatest.tools.Framework")
+  }
 }

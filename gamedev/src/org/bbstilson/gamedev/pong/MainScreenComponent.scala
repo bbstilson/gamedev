@@ -1,4 +1,4 @@
-package bbstilson.org.gamedev.pong
+package org.bbstilson.gamedev.pong
 
 import sgl._
 import sgl.util._
@@ -57,7 +57,7 @@ trait MainScreenComponent {
     var ball = Circle(centerH(SQUARE_SIZE), centerV(SQUARE_SIZE), ballRadius)
 
     var BALL_SPEED = 4
-    var PLAYER2_SPEED = 2
+    var PLAYER2_SPEED = 8
     val PLAYER1_SPEED = 8
 
     var ballDirection = {
@@ -78,7 +78,7 @@ trait MainScreenComponent {
 
     def updatePlayer2Position(): Unit = {
       // Player 2 always moves tries to get under the ball.
-      val player2Y = player2.center.y
+      val player2Y = player2.centerY
       // + for up; - for down; 0 for don't move
       val desiredDirection = ball.center.y match {
         case ballY if (ballY > player2Y) => PLAYER2_SPEED
@@ -98,18 +98,22 @@ trait MainScreenComponent {
         case nb if (nb.bottom >= TOTAL_HEIGHT || nb.top <= 0) => {
           (Circle(nb.x, ball.y, ballRadius), ballDirection.copy(y = ballDirection.y * -1))
         }
-        case nb if (nb.left <= 0 || nb.right >= TOTAL_WIDTH) => {
-          val (p1S, p2S) = if (nb.left <= 0) {
-            (player1Score, player2Score + 1)
-          } else {
-            (player1Score + 1, player2Score)
-          }
-          gameOver(p1S, p2S)
-          // game over will wipe the state, so this is just for compiler happiness
-          (ball, ballDirection)
-        }
         case nb if (nb.intersect(player1) || nb.intersect(player2)) => {
-          (Circle(ball.x, nb.y, ballRadius), ballDirection.copy(x = ballDirection.x * -1))
+          val paddleCollidedWith = List(player1, player2).find(nb.intersect).get
+          val nextBallDirection = Collision.calcBallVecFromPaddleCollision(
+            b = nb,
+            d = ballDirection,
+            p = paddleCollidedWith
+          )
+          (Circle(ball.x, nb.y, ballRadius), nextBallDirection)
+        }
+        case nb if (nb.left < PADDLE_WIDTH / 2) => {
+          gameOver(player1Score, player2Score + 1)
+          (nb, ballDirection)
+        }
+        case nb if (nb.right > TOTAL_WIDTH - PADDLE_WIDTH / 2) => {
+          gameOver(player1Score + 1, player2Score)
+          (nb, ballDirection)
         }
         case nb => (nb, ballDirection)
       }
@@ -150,6 +154,7 @@ trait MainScreenComponent {
       drawPaddle(canvas, player1, OBJECT_COLOR)
       drawPaddle(canvas, player2, OBJECT_COLOR)
       drawBall(canvas)
+      drawNet(canvas)
 
       hud.sceneGraph.render(canvas)
     }
@@ -160,6 +165,19 @@ trait MainScreenComponent {
 
     private def drawBall(canvas: Canvas): Unit = {
       canvas.drawCircle(ball.x, ball.y, ballRadius, OBJECT_COLOR)
+    }
+
+    val NET_SPACING = SQUARE_SIZE / 2
+    val NET_PIECE_DIST = SQUARE_SIZE + NET_SPACING
+    val NUM_NET_PIECES = TOTAL_HEIGHT / NET_PIECE_DIST
+    val NET_PIECES = List.fill(NUM_NET_PIECES)(NET_PIECE_DIST).scanLeft(0)(_ + _)
+    val NET_PIECE_SIDE = SQUARE_SIZE / 2
+    val NET_PIECE_CENTER = TOTAL_WIDTH / 2 - NET_PIECE_SIDE
+
+    private def drawNet(canvas: Canvas): Unit = {
+      NET_PIECES.foreach(y =>
+        canvas.drawRect(NET_PIECE_CENTER, y, NET_PIECE_SIDE, NET_PIECE_SIDE, OBJECT_COLOR)
+      )
     }
   }
 
