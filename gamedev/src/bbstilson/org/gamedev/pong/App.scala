@@ -14,6 +14,6 @@ trait AbstractApp extends MainScreenComponent with ViewportComponent {
     with SceneComponent
     with LoggingProvider =>
 
-  override def startingScreen: GameScreen = new MainScreen
+  override def startingScreen: GameScreen = new MainScreen(0, 0)
 
 }

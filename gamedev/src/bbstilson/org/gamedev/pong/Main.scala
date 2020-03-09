@@ -10,6 +10,6 @@ object Main extends AbstractApp with AWTApp with SceneComponent with VerboseStdE
 
   override val TargetFps = Some(60)
 
-  override val frameDimension = (TotalWidth, TotalHeight)
+  override val frameDimension = (TOTAL_WIDTH, TOTAL_HEIGHT)
 
 }

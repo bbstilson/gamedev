@@ -15,85 +15,97 @@ trait MainScreenComponent {
     with SystemProvider
     with GameStateComponent
     with SceneComponent
+    with ViewportComponent
     with LoggingProvider =>
 
   import Graphics._
 
-  val squareSize = 20
-  val ballRadius = squareSize.toFloat / 2
-  val paddleHeight = squareSize * 5
-  val paddleWidth = squareSize
-  lazy val objectColor = defaultPaint.withColor(Color.White)
-  lazy val backgroundColor = defaultPaint.withColor(Color.Black)
+  val SQUARE_SIZE = 20
+  lazy val OBJECT_COLOR = defaultPaint.withColor(Color.White)
+  lazy val BACKGROUND_COLOR = defaultPaint.withColor(Color.Black)
 
-  val TotalWidth = squareSize * 40
-  val TotalHeight = squareSize * 20
+  val TOTAL_WIDTH = SQUARE_SIZE * 40
+  val TOTAL_HEIGHT = SQUARE_SIZE * 20
 
-  def centerV(objHeight: Int): Int = (TotalHeight - objHeight) / 2
-  def centerH(objWidth: Int): Int = (TotalWidth - objWidth) / 2
+  def centerV(objHeight: Int): Int = (TOTAL_HEIGHT - objHeight) / 2
+  def centerH(objWidth: Int): Int = (TOTAL_WIDTH - objWidth) / 2
 
   implicit private val LogTag = Logger.Tag("main-screen")
 
-  class MainScreen extends GameScreen {
+  class MainScreen(player1Score: Int = 0, player2Score: Int = 0) extends GameScreen {
+
+    def getPlayer1Score: String = player1Score.toString
+    def getPlayer2Score: String = player2Score.toString
 
     override def name: String = "Scala Pong"
 
+    val hud = new Hud(this)
+
     val r = new Random
 
+    val PADDLE_HEIGHT = SQUARE_SIZE * 5
+    val PADDLE_WIDTH = SQUARE_SIZE
+    val PADDLE_MID = centerV(PADDLE_HEIGHT)
+
     // Start players in the middle of the screen.
-    val paddleMid = centerV(paddleHeight)
-    var player1Pos = Point(0, paddleMid)
-    var player2Pos = Point(TotalWidth - paddleWidth, paddleMid)
-    var moveDir: Option[Vec] = None
+    var player1 = Rect(0, PADDLE_MID, PADDLE_WIDTH, PADDLE_HEIGHT)
+    var player2 = Rect(TOTAL_WIDTH - PADDLE_WIDTH, PADDLE_MID, PADDLE_WIDTH, PADDLE_HEIGHT)
+    var playerDirection: Option[Vec] = None
 
     // Start ball headed in a random direction within 45º at either player.
-    var ballPos = Point(centerH(squareSize), centerV(squareSize))
+    val ballRadius = SQUARE_SIZE.toFloat / 2
+    var ball = Circle(centerH(SQUARE_SIZE), centerV(SQUARE_SIZE), ballRadius)
 
     var BALL_SPEED = 4
     val PADDLE_SPEED = 8
 
-    var ballDir = {
+    var ballDirection = {
       val rX = if (r.nextBoolean) -BALL_SPEED else BALL_SPEED
       val rY = if (r.nextBoolean) -BALL_SPEED else BALL_SPEED
       Vec(rX, rY)
     }
 
-    val Up = Vec(0, -PADDLE_SPEED)
-    val Down = Vec(0, PADDLE_SPEED)
+    val UP = Vec(0, -PADDLE_SPEED)
+    val DOWN = Vec(0, PADDLE_SPEED)
 
-    val colliders = new Colliders(TotalHeight, TotalWidth, ballRadius, paddleHeight, paddleWidth)
-
-    def gameOver(): Unit = {
-      gameState.newScreen(new MainScreen())
+    def gameOver(p1S: Int, p2S: Int): Unit = {
+      gameState.newScreen(new MainScreen(p1S, p2S))
     }
 
-    def updatePlayerPosition(newPos: Point): Unit = player1Pos = newPos
-
-    def playerCanMove(newPos: Point): Boolean = {
-      newPos.y >= 0 && (newPos.y + paddleHeight) <= TotalHeight
-    }
+    def updatePlayerPosition(player: Rect): Unit = player1 = player
+    def playerCanMove(p: Rect): Boolean = p.top >= 0 && p.bottom <= TOTAL_HEIGHT
 
     def moveBall(): Unit = {
-      val nextPos = ballPos + ballDir
-      if (colliders.outY(nextPos)) {
-        ballDir = ballDir.copy(y = ballDir.y * -1)
-        ballPos = Point(nextPos.x, ballPos.y)
-      } else if (colliders.outX(nextPos)) {
-        gameOver()
-      } else if (colliders.hitPaddle(nextPos, player1Pos, player2Pos)) {
-        ballDir = ballDir.copy(x = ballDir.x * -1)
-        ballPos = Point(ballPos.x, nextPos.y)
-      } else {
-        ballPos = nextPos
+      val (nextBall, nextBallDirection) = (ball + ballDirection) match {
+        case nb if (nb.bottom >= TOTAL_HEIGHT || nb.top <= 0) => {
+          (Circle(nb.x, ball.y, ballRadius), ballDirection.copy(y = ballDirection.y * -1))
+        }
+        case nb if (nb.left <= 0 || nb.right >= TOTAL_WIDTH) => {
+          val (p1S, p2S) = if (nb.left <= 0) {
+            (player1Score, player2Score + 1)
+          } else {
+            (player1Score + 1, player2Score)
+          }
+          gameOver(p1S, p2S)
+          // game over will wipe the state, so this is just for compiler happiness
+          (ball, ballDirection)
+        }
+        case nb if (nb.intersect(player1) || nb.intersect(player2)) => {
+          (Circle(ball.x, nb.y, ballRadius), ballDirection.copy(x = ballDirection.x * -1))
+        }
+        case nb => (nb, ballDirection)
       }
+
+      ball = nextBall
+      ballDirection = nextBallDirection
     }
 
     private def handleInput(e: Input.InputEvent): Unit = {
       e match {
-        case Input.KeyDownEvent(Input.Keys.Up)   => moveDir = Some(Up)
-        case Input.KeyDownEvent(Input.Keys.Down) => moveDir = Some(Down)
-        case Input.KeyUpEvent(Input.Keys.Up)     => moveDir = None
-        case Input.KeyUpEvent(Input.Keys.Down)   => moveDir = None
+        case Input.KeyDownEvent(Input.Keys.Up)   => playerDirection = Some(UP)
+        case Input.KeyDownEvent(Input.Keys.Down) => playerDirection = Some(DOWN)
+        case Input.KeyUpEvent(Input.Keys.Up)     => playerDirection = None
+        case Input.KeyUpEvent(Input.Keys.Down)   => playerDirection = None
         case _                                   => ()
       }
     }
@@ -101,68 +113,82 @@ trait MainScreenComponent {
     override def update(dt: Long): Unit = {
       Input.processEvents(handleInput)
 
-      moveDir
-        .map(player1Pos + _)
+      playerDirection
+        .map(player1 + _)
         .filter(playerCanMove)
         .foreach(updatePlayerPosition)
 
       moveBall()
     }
 
-    def drawPaddle(canvas: Canvas, point: Point, paint: Paint) = {
-      canvas.drawRect(point.x, point.y, paddleWidth, paddleHeight, paint)
-    }
-
-    def drawPlayer1(canvas: Canvas): Unit = {
-      drawPaddle(canvas, player1Pos, objectColor)
-    }
-
-    def drawPlayer2(canvas: Canvas): Unit = {
-      drawPaddle(canvas, player2Pos, objectColor)
-    }
-
-    def drawBall(canvas: Canvas): Unit = {
-      canvas.drawCircle(ballPos.x, ballPos.y, ballRadius, objectColor)
-    }
-
     override def render(canvas: Canvas): Unit = {
-      canvas.drawRect(0, 0, Window.width, Window.height, backgroundColor)
-      drawPlayer1(canvas)
-      drawPlayer2(canvas)
+      canvas.drawRect(0, 0, Window.width, Window.height, BACKGROUND_COLOR)
+
+      drawPaddle(canvas, player1, OBJECT_COLOR)
+      drawPaddle(canvas, player2, OBJECT_COLOR)
       drawBall(canvas)
+
+      hud.sceneGraph.render(canvas)
     }
 
-    // class Debug extends SceneNode(WindowWidth - dp2px(15), dp2px(25), 0, 0) {
-    //   def update(dt: Long): Unit = ()
+    private def drawPaddle(canvas: Canvas, player: Rect, paint: Paint) = {
+      canvas.drawRect(player.left, player.top, player.width, player.height, paint)
+    }
 
-    //   def render(canvas: Graphics.Canvas): Unit = {
-    //     canvas.drawString("hello", x.toInt, y.toInt, textPaint.withAlignment(Alignments.Right))
-    //   }
-    // }
-
+    private def drawBall(canvas: Canvas): Unit = {
+      canvas.drawCircle(ball.x, ball.y, ballRadius, OBJECT_COLOR)
+    }
   }
 
-}
+  class Hud(mainScreen: MainScreen) {
+    val viewport = new Viewport(Window.width, Window.height)
+    val sceneGraph = new SceneGraph(Window.width, Window.height, viewport)
 
-class Colliders(
-  totalHeight: Int,
-  totalWidth: Int,
-  ballRadius: Float,
-  paddleHeight: Int,
-  paddleWidth: Int
-) {
-  def outY(p: Point): Boolean = p.y + ballRadius >= totalHeight || p.y - ballRadius < 0
+    private val group = new SceneGroup(0, 0, Window.width, Window.height)
 
-  def outX(p: Point): Boolean = p.x - ballRadius <= 0 || p.x + ballRadius >= totalWidth
+    private val player1Score = new Player1Score
+    private val player2Score = new Player2Score
 
-  def hitPaddle(p: Point, p1: Point, p2: Point): Boolean = {
-    val hitPlayer1 = (p.x - ballRadius < paddleWidth) && collidesY(p, p1)
-    val hitPlayer2 = (p.x + ballRadius > totalWidth - paddleWidth) && collidesY(p, p2)
+    group.addNode(player1Score)
+    group.addNode(player2Score)
+    sceneGraph.addNode(group)
 
-    hitPlayer1 || hitPlayer2
+    private lazy val scoreFontSize = Window.dp2px(100)
+
+    private val scorePaint = defaultPaint
+      .withColor(Color.White)
+      .withFont(Font.Default.withSize(scoreFontSize))
+
+    private lazy val player1TextPosX = (Window.width / 2) - Window.dp2px(50)
+    private lazy val player2TextPosX = (Window.width / 2) + Window.dp2px(50)
+    private lazy val playerScoreY = scoreFontSize
+
+    class Player1Score extends SceneNode(player1TextPosX, playerScoreY, 0, 0) {
+      def update(dt: Long): Unit = ()
+
+      def render(canvas: Graphics.Canvas): Unit = {
+        canvas.drawString(
+          mainScreen.getPlayer1Score,
+          x.toInt,
+          y.toInt,
+          scorePaint.withAlignment(Alignments.Right)
+        )
+      }
+    }
+
+    class Player2Score extends SceneNode(player2TextPosX, playerScoreY, 0, 0) {
+
+      def update(dt: Long): Unit = ()
+
+      def render(canvas: Graphics.Canvas): Unit = {
+        canvas.drawString(
+          mainScreen.getPlayer2Score,
+          x.toInt,
+          y.toInt,
+          scorePaint.withAlignment(Alignments.Left)
+        )
+      }
+    }
+
   }
-
-  private def collidesY(p: Point, player: Point): Boolean =
-    (p.y >= player.y && p.y <= player.y + paddleHeight)
-
 }
