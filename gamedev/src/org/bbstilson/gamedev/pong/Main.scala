@@ -8,8 +8,6 @@ import sgl.SaveComponent
 
 object Main extends AbstractApp with AWTApp with SceneComponent with VerboseStdErrLoggingProvider {
 
-  override val TargetFps = Some(60)
-
   override val frameDimension = (TOTAL_WIDTH, TOTAL_HEIGHT)
 
 }

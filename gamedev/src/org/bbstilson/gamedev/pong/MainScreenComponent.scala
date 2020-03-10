@@ -6,6 +6,8 @@ import geometry._
 import scene._
 
 import scala.util.Random
+import scala.util.Success
+import scala.util.Failure
 
 trait MainScreenComponent {
   self: GraphicsProvider
@@ -16,9 +18,12 @@ trait MainScreenComponent {
     with GameStateComponent
     with SceneComponent
     with ViewportComponent
+    with PartsResourcePathProvider
     with LoggingProvider =>
 
+  import Audio._
   import Graphics._
+  import Implicits._
 
   val SQUARE_SIZE = 20
   lazy val OBJECT_COLOR = defaultPaint.withColor(Color.White)
@@ -32,7 +37,11 @@ trait MainScreenComponent {
 
   implicit private val LogTag = Logger.Tag("main-screen")
 
-  class MainScreen(player1Score: Int = 0, player2Score: Int = 0) extends GameScreen {
+  class MainScreen(
+    player1Score: Int = 0,
+    player2Score: Int = 0,
+    sounds: Map[String, Sound]
+  ) extends GameScreen {
 
     def getPlayer1Score: String = player1Score.toString
     def getPlayer2Score: String = player2Score.toString
@@ -57,7 +66,7 @@ trait MainScreenComponent {
     var ball = Circle(centerH(SQUARE_SIZE), centerV(SQUARE_SIZE), ballRadius)
 
     var BALL_SPEED = 4
-    var PLAYER2_SPEED = 8
+    var PLAYER2_SPEED = 4
     val PLAYER1_SPEED = 8
 
     var ballDirection = {
@@ -70,7 +79,7 @@ trait MainScreenComponent {
     val DOWN = Vec(0, PLAYER1_SPEED)
 
     def gameOver(p1S: Int, p2S: Int): Unit = {
-      gameState.newScreen(new MainScreen(p1S, p2S))
+      gameState.newScreen(new MainScreen(p1S, p2S, sounds))
     }
 
     def updatePlayerPosition(p: Rect): Unit = player1 = p
@@ -96,22 +105,22 @@ trait MainScreenComponent {
     def moveBall(): Unit = {
       val (nextBall, nextBallDirection) = (ball + ballDirection) match {
         case nb if (nb.bottom >= TOTAL_HEIGHT || nb.top <= 0) => {
+          sounds(Assets.Sound.BALL_HIT).play()
           (Circle(nb.x, ball.y, ballRadius), ballDirection.copy(y = ballDirection.y * -1))
         }
         case nb if (nb.intersect(player1) || nb.intersect(player2)) => {
-          val paddleCollidedWith = List(player1, player2).find(nb.intersect).get
-          val nextBallDirection = Collision.calcBallVecFromPaddleCollision(
-            b = nb,
-            d = ballDirection,
-            p = paddleCollidedWith
-          )
+          val calc = Collision.calcBallVecFromPaddleCollision(nb, ballDirection) _
+          val nextBallDirection = List(player1, player2).find(nb.intersect).map(calc).get
+          sounds(Assets.Sound.BALL_HIT).play()
           (Circle(ball.x, nb.y, ballRadius), nextBallDirection)
         }
         case nb if (nb.left < PADDLE_WIDTH / 2) => {
+          sounds(Assets.Sound.PLAYER_SCORED).play()
           gameOver(player1Score, player2Score + 1)
           (nb, ballDirection)
         }
         case nb if (nb.right > TOTAL_WIDTH - PADDLE_WIDTH / 2) => {
+          sounds(Assets.Sound.PLAYER_SCORED).play()
           gameOver(player1Score + 1, player2Score)
           (nb, ballDirection)
         }
@@ -141,7 +150,7 @@ trait MainScreenComponent {
         .foreach(updatePlayerPosition)
 
       // Only react when the ball is on their side.
-      if (ball.center.x >= TOTAL_WIDTH / 2) {
+      if (ball.center.x >= TOTAL_WIDTH / 2 && ballDirection.x > 0) {
         updatePlayer2Position()
       }
 
@@ -232,4 +241,16 @@ trait MainScreenComponent {
     }
 
   }
+}
+
+object Implicits {
+
+  implicit class RectOps(r: Rect) {
+    def +(v: Vec): Rect = Rect(r.left + v.x, r.top + v.y, r.width, r.height)
+  }
+
+  implicit class CircleOps(r: Circle) {
+    def +(v: Vec): Circle = Circle(r.x + v.x, r.y + v.y, r.radius)
+  }
+
 }

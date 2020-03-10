@@ -6,7 +6,7 @@ import scala.math.abs
 object Collision {
   private val PADDLE_COLLISION_MOD: Float = 0.8f
 
-  def calcBallVecFromPaddleCollision(b: Circle, d: Vec, p: Rect): Vec = {
+  def calcBallVecFromPaddleCollision(b: Circle, d: Vec)(p: Rect): Vec = {
     val nextX = d.x * -1
     val paddleThird = p.height / 3
 

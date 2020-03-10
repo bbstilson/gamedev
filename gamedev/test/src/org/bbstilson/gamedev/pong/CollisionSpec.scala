@@ -10,22 +10,22 @@ class CollisionSpec extends UnitSpec {
   val PADDLE = Rect(0, 0, 1, 12)
 
   "calcBallVecFromPaddleCollision" should "increase speed when moving up and hit the top corner" in {
-    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_HI, UP_LEFT, PADDLE).y
+    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_HI, UP_LEFT)(PADDLE).y
     newY > UP_LEFT.y shouldBe true
   }
 
   it should "decrease speed when moving down and hit the top corner" in {
-    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_HI, DOWN_LEFT, PADDLE).y
+    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_HI, DOWN_LEFT)(PADDLE).y
     newY < DOWN_LEFT.y shouldBe true
   }
 
   it should "decrease speed when moving up and hit the bottom corner" in {
-    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_LOW, UP_LEFT, PADDLE).y
+    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_LOW, UP_LEFT)(PADDLE).y
     newY < UP_LEFT.y shouldBe true
   }
 
   it should "increase speed when moving down and hit the bottom corner" in {
-    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_LOW, DOWN_LEFT, PADDLE).y
+    val newY = Collision.calcBallVecFromPaddleCollision(CIRCLE_LOW, DOWN_LEFT)(PADDLE).y
     newY > DOWN_LEFT.y shouldBe true
   }
 }
